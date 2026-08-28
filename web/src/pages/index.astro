@@ -1,0 +1,86 @@
+---
+import '../styles/global.css';
+import logo from '../../imgs/logo.png?url';
+import banner from '../../imgs/banner.png?url';
+const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'http://localhost:3333';
+---
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="theme-color" content="#f5f0e8" />
+    <link rel="icon" type="image/png" href={logo} />
+    <title>Cliente Mouragro</title>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="brand-panel" aria-label="Mouragro">
+        <img class="brand-banner" src={banner} alt="Centro de Operação Logística Mouragro" />
+        <div class="brand-mark"><img src={logo} alt="Mouragro" /></div>
+        <div>
+          <p class="eyebrow">MOURAGRO COMERCIO DE PRODUTOS AGROPECUARIOS</p>
+          <h1>Consulta de<br /><em>clientes</em></h1>
+        </div>
+      </section>
+
+      <section class="app-panel">
+        <div id="login-view" class="view active">
+          <div class="view-heading"><span class="step">01</span><div><p class="eyebrow">Acesso restrito</p><h2>Entre para começar</h2></div></div>
+          <form id="login-form" class="form">
+            <label>E-mail<input name="email" type="email" autocomplete="email" placeholder="Digite seu e-mail" required /></label>
+            <label>Senha<input name="password" type="password" autocomplete="current-password" placeholder="Digite sua senha" required /></label>
+            <p id="login-error" class="message error" role="alert" hidden></p>
+            <button class="primary" type="submit">Entrar <span aria-hidden="true">↗</span></button>
+          </form>
+          <p class="secure-note"><span>●</span> Ambiente protegido Mouragro</p>
+        </div>
+
+        <div id="lookup-view" class="view" hidden>
+          <header class="topbar"><div><p class="eyebrow">Olá, <span id="user-name"></span></p><h2>Quem estamos procurando?</h2></div><button id="logout" class="logout" type="button" aria-label="Sair">Sair</button></header>
+          <form id="lookup-form" class="form">
+            <fieldset><legend>Tipo de pessoa</legend><div class="segmented"><label><input type="radio" name="personType" value="PF" checked /><span>Pessoa física</span></label><label><input type="radio" name="personType" value="PJ" /><span>Pessoa jurídica</span></label></div></fieldset>
+            <label><span id="document-label">CPF</span><input id="document" name="document" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" required /></label>
+            <p id="lookup-message" class="message" role="status" hidden></p>
+            <button id="lookup-button" class="primary" type="submit">Consultar <span aria-hidden="true">⌕</span></button>
+          </form>
+          <article id="result" class="result" hidden></article>
+          <p class="footnote">Os dados são consultados diretamente na base Mouragro.</p>
+        </div>
+      </section>
+    </main>
+    <script is:inline define:vars={{ apiUrl }}>
+      const loginView = document.querySelector('#login-view');
+      const lookupView = document.querySelector('#lookup-view');
+      const loginForm = document.querySelector('#login-form');
+      const lookupForm = document.querySelector('#lookup-form');
+      const loginError = document.querySelector('#login-error');
+      const lookupMessage = document.querySelector('#lookup-message');
+      const result = document.querySelector('#result');
+      const documentInput = document.querySelector('#document');
+      const documentLabel = document.querySelector('#document-label');
+      const tokenKey = 'mouragro_token';
+      const formatDocument = (value, type) => {
+        const digits = value.replace(/\D/g, '').slice(0, type === 'PF' ? 11 : 14);
+        if (type === 'PF') return digits.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        return digits.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+      };
+      const type = () => document.querySelector('input[name="personType"]:checked').value;
+      document.querySelectorAll('input[name="personType"]').forEach((input) => input.addEventListener('change', () => { documentLabel.textContent = type() === 'PF' ? 'CPF' : 'CNPJ'; documentInput.placeholder = type() === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'; documentInput.value = ''; }));
+      documentInput.addEventListener('input', () => { documentInput.value = formatDocument(documentInput.value, type()); });
+      const showMessage = (node, text, kind = 'error') => { node.textContent = text; node.className = `message ${kind}`; node.hidden = !text; };
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault(); const button = loginForm.querySelector('button'); button.disabled = true; showMessage(loginError, '');
+        const body = Object.fromEntries(new FormData(loginForm));
+        try { const response = await fetch(`${apiUrl}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); localStorage.setItem(tokenKey, data.token); document.querySelector('#user-name').textContent = data.apelido || data.email; loginView.hidden = true; lookupView.hidden = false; } catch (error) { showMessage(loginError, error.message || 'Não foi possível entrar.'); } finally { button.disabled = false; }
+      });
+      lookupForm.addEventListener('submit', async (event) => {
+        event.preventDefault(); const button = document.querySelector('#lookup-button'); button.disabled = true; result.hidden = true; showMessage(lookupMessage, 'Consultando a base Mouragro...', 'loading');
+        const body = Object.fromEntries(new FormData(lookupForm));
+        try { const response = await fetch(`${apiUrl}/customers/lookup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem(tokenKey)}` }, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); showMessage(lookupMessage, ''); const customer = data.customer || {}; result.classList.toggle('result--not-found', !data.isCustomer); result.innerHTML = data.isCustomer ? `<div class="result-icon">✓</div><p class="eyebrow">Cliente Mouragro</p><h3>Cadastro localizado</h3><dl><div><dt>CODPARC</dt><dd>${escapeHtml(customer.CODPARC)}</dd></div><div><dt>RAZAOSOCIAL</dt><dd>${escapeHtml(customer.RAZAOSOCIAL)}</dd></div><div><dt>CGC_CPF</dt><dd>${escapeHtml(customer.CGC_CPF)}</dd></div></dl>` : `<div class="result-icon muted">—</div><p class="eyebrow">Resultado da consulta</p><h3>Não é cliente Mouragro</h3><p class="result-copy">Não encontramos esse documento em nossa base.</p>`; result.hidden = false; } catch (error) { showMessage(lookupMessage, error.message || 'Falha na consulta.'); } finally { button.disabled = false; }
+      });
+      document.querySelector('#logout').addEventListener('click', () => { localStorage.removeItem(tokenKey); lookupView.hidden = true; loginView.hidden = false; loginForm.reset(); });
+    </script>
+  </body>
+</html>

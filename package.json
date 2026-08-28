@@ -1,0 +1,11 @@
+{
+  "name": "cliente-mouragro",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix api\" \"npm run dev --prefix web\"",
+    "build": "npm run build --prefix api && npm run build --prefix web",
+    "start": "concurrently \"npm run start --prefix api\" \"npm run preview --prefix web\"",
+    "install:all": "npm install --prefix api && npm install --prefix web"
+  },
+  "devDependencies": { "concurrently": "^9.1.2" }
+}
