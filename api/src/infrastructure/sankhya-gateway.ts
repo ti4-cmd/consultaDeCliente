@@ -26,7 +26,7 @@ export class SankhyaCustomerGateway implements CustomerGateway, CredentialValida
     try {
       const document = query.document.replace(/\D/g, '');
       const accessToken = await this.authenticate();
-      const rows = await this.executeQuery(`SELECT CODPARC, RAZAOSOCIAL, CGC_CPF FROM TGFPAR WHERE ATIVO = 'S' AND CLIENTE = 'S' AND CGC_CPF = '${document}'`, accessToken);
+      const rows = await this.executeQuery(`SELECT CODPARC, RAZAOSOCIAL, CGC_CPF, ATIVO FROM TGFPAR WHERE ATIVO IS NOT NULL AND CLIENTE = 'S' AND CGC_CPF = '${document}'`, accessToken);
       const customer = rows[0] ?? null;
       return {
         isCustomer: customer !== null,
