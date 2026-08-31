@@ -60,6 +60,48 @@ const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'http://localhost:3333';
       const documentInput = document.querySelector('#document');
       const documentLabel = document.querySelector('#document-label');
       const tokenKey = 'mouragro_token';
+      const inMemoryStorage = {};
+      const safeStorage = {
+        getItem(key) {
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              const value = window.localStorage.getItem(key);
+              if (value !== null) {
+                inMemoryStorage[key] = value;
+                return value;
+              }
+            }
+          } catch {
+            // Ignore browser storage restrictions; fallback to memory.
+          }
+
+          return inMemoryStorage[key] ?? null;
+        },
+        setItem(key, value) {
+          const serialized = String(value);
+          inMemoryStorage[key] = serialized;
+
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem(key, serialized);
+            }
+            return true;
+          } catch {
+            return true;
+          }
+        },
+        removeItem(key) {
+          delete inMemoryStorage[key];
+
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.removeItem(key);
+            }
+          } catch {
+            // Ignored when storage is unavailable or blocked by the browser.
+          }
+        }
+      };
       const formatDocument = (value, type) => {
         const digits = value.replace(/\D/g, '').slice(0, type === 'PF' ? 11 : 14);
         if (type === 'PF') return digits.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
@@ -73,14 +115,15 @@ const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'http://localhost:3333';
       loginForm.addEventListener('submit', async (event) => {
         event.preventDefault(); const button = loginForm.querySelector('button'); button.disabled = true; showMessage(loginError, '');
         const body = Object.fromEntries(new FormData(loginForm));
-        try { const response = await fetch(`${apiUrl}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); localStorage.setItem(tokenKey, data.token); document.querySelector('#user-name').textContent = data.apelido || data.email; loginView.hidden = true; lookupView.hidden = false; } catch (error) { showMessage(loginError, error.message || 'Não foi possível entrar.'); } finally { button.disabled = false; }
+        try { const response = await fetch(`${apiUrl}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); const tokenSaved = safeStorage.setItem(tokenKey, data.token); if (!tokenSaved) { throw new Error('Seu navegador bloqueou o armazenamento local. Tente novamente em outra aba ou navegador.'); } document.querySelector('#user-name').textContent = data.apelido || data.email; loginView.hidden = true; lookupView.hidden = false; } catch (error) { showMessage(loginError, error.message || 'Não foi possível entrar.'); } finally { button.disabled = false; }
       });
       lookupForm.addEventListener('submit', async (event) => {
         event.preventDefault(); const button = document.querySelector('#lookup-button'); button.disabled = true; result.hidden = true; showMessage(lookupMessage, 'Consultando a base Mouragro...', 'loading');
         const body = Object.fromEntries(new FormData(lookupForm));
-        try { const response = await fetch(`${apiUrl}/customers/lookup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem(tokenKey)}` }, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); showMessage(lookupMessage, ''); const customer = data.customer || {}; result.classList.toggle('result--not-found', !data.isCustomer); result.innerHTML = data.isCustomer ? `<div class="result-icon">✓</div><p class="eyebrow">Cliente Mouragro</p><h3>Cadastro localizado</h3><dl><div><dt>CODPARC</dt><dd>${escapeHtml(customer.CODPARC)}</dd></div><div><dt>RAZAOSOCIAL</dt><dd>${escapeHtml(customer.RAZAOSOCIAL)}</dd></div><div><dt>CNPJ_CPF</dt><dd>${escapeHtml(customer.CGC_CPF)}</dd></div><div><dt>ATIVO</dt><dd>${escapeHtml(customer.ATIVO)}</dd></div></dl>` : `<div class="result-icon muted">—</div><p class="eyebrow">Resultado da consulta</p><h3>Não é cliente Mouragro</h3><p class="result-copy">Não encontramos esse documento em nossa base.</p>`; result.hidden = false; } catch (error) { showMessage(lookupMessage, error.message || 'Falha na consulta.'); } finally { button.disabled = false; }
+        const token = safeStorage.getItem(tokenKey);
+        try { const response = await fetch(`${apiUrl}/customers/lookup`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); showMessage(lookupMessage, ''); const customer = data.customer || {}; result.classList.toggle('result--not-found', !data.isCustomer); result.innerHTML = data.isCustomer ? `<div class="result-icon">✓</div><p class="eyebrow">Cliente Mouragro</p><h3>Cadastro localizado</h3><dl><div><dt>CODPARC</dt><dd>${escapeHtml(customer.CODPARC)}</dd></div><div><dt>RAZAOSOCIAL</dt><dd>${escapeHtml(customer.RAZAOSOCIAL)}</dd></div><div><dt>CNPJ_CPF</dt><dd>${escapeHtml(customer.CGC_CPF)}</dd></div><div><dt>ATIVO</dt><dd>${escapeHtml(customer.ATIVO)}</dd></div></dl>` : `<div class="result-icon muted">—</div><p class="eyebrow">Resultado da consulta</p><h3>Não é cliente Mouragro</h3><p class="result-copy">Não encontramos esse documento em nossa base.</p>`; result.hidden = false; } catch (error) { showMessage(lookupMessage, error.message || 'Falha na consulta.'); } finally { button.disabled = false; }
       });
-      document.querySelector('#logout').addEventListener('click', () => { localStorage.removeItem(tokenKey); lookupView.hidden = true; loginView.hidden = false; loginForm.reset(); });
+      document.querySelector('#logout').addEventListener('click', () => { safeStorage.removeItem(tokenKey); lookupView.hidden = true; loginView.hidden = false; loginForm.reset(); });
     </script>
   </body>
 </html>
