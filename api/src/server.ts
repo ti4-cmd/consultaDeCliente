@@ -4,6 +4,6 @@ import { loadConfig } from './config/env.js';
 const config = loadConfig();
 const app = createApp(config);
 
-app.listen(config.PORT, () => {
-  console.log(`API running at http://localhost:${config.PORT}`);
+app.listen(config.PORT, config.HOST, () => {
+  console.log(`API running at http://${config.HOST}:${config.PORT}`);
 });

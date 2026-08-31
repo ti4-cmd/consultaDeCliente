@@ -4,3 +4,5 @@ node_modules
 !.env.example
 dist
 .astro
+start-project-open.bat
+start-project.bat

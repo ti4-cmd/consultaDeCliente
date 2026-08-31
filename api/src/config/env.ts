@@ -4,7 +4,8 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3333),
-  APP_ORIGIN: z.string().url().default('http://localhost:4321'),
+  HOST: z.string().trim().min(1).default('0.0.0.0'),
+  APP_ORIGIN: z.string().trim().min(1).default('http://localhost:3025'),
   SESSION_SECRET: z.string().min(16),
   SANKHYA_API_URL: z.string().url(),
   SANKHYA_SERVICE_URL: z.string().url().default('https://api.sandbox.sankhya.com.br/gateway/v1/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json'),
